@@ -30,19 +30,17 @@ decode decoders url =
         init =
             State (preparePath url.path) (prepareQuery url.query) url.fragment
 
-        toResult (Decoder d) =
+        run (Decoder d) =
             case d init of
                 Just ( state, value ) ->
-                    if List.isEmpty state.path then
-                        Just value
-
-                    else
-                        Nothing
+                    if List.isEmpty state.path
+                        then Just value
+                        else Nothing
 
                 Nothing ->
                     Nothing
     in
-    case List.filterMap toResult decoders of
+    case List.filterMap run decoders of
         [ value ] ->
             Just value
 
@@ -53,22 +51,25 @@ decode decoders url =
 {-| -}
 map : (a -> b) -> Decoder a -> Decoder b
 map f (Decoder a) =
-    Decoder <|
-        \state ->
-            Maybe.map (\( state_, value ) -> ( state_, f value )) (a state)
+    Decoder <| \state ->
+        case a state of
+            Just ( state_, value ) ->
+                Just ( state_, f value )
+
+            Nothing ->
+                Nothing
 
 
 {-| -}
 oneOf : List (Decoder a) -> Decoder (a -> b) -> Decoder b
-oneOf decoders (Decoder func) =
-    Decoder <|
-        \state ->
-            case List.filterMap (\(Decoder d) -> d state) decoders of
-                ( state_, value ) :: _ ->
-                    apply (func state_) (Just value)
+oneOf decoders decoder =
+    withNext decoder <| \state next ->
+        case List.filterMap (\(Decoder d) -> d state) decoders of
+            ( state_, value ) :: _ ->
+                Just (state_, next value)
 
-                _ ->
-                    Nothing
+            _ ->
+                Nothing
 
 
 {-| -}
@@ -79,73 +80,64 @@ succeed a =
 
 {-| -}
 const : String -> Decoder a -> Decoder a
-const wanted (Decoder func) =
-    Decoder <|
-        \state ->
-            segment state <|
-                \state_ str ->
-                    if str == wanted then
-                        func state_
-
-                    else
-                        Nothing
+const wanted decoder =
+    withNext decoder <| \state next ->
+        segment state <| \str ->
+            if str == wanted then Just next else Nothing
 
 
 {-| -}
 int : Decoder (Int -> a) -> Decoder a
-int (Decoder f) =
-    Decoder <|
-        \state ->
-            segment state <|
-                \state_ str ->
-                    apply (f state_) (String.toInt str)
+int decoder =
+    withNext decoder <| \state next ->
+        segment state <| \str ->
+            Maybe.map next (String.toInt str)
 
 
 {-| -}
 string : Decoder (String -> a) -> Decoder a
-string (Decoder f) =
-    Decoder <|
-        \state ->
-            segment state <|
-                \state_ str ->
-                    apply (f state_) (Just str)
+string decoder =
+    withNext decoder <| \state next ->
+        segment state <| \str ->
+            Just (next str)
 
 
 {-| -}
 option : List ( String, b ) -> Decoder (b -> a) -> Decoder a
-option options (Decoder f) =
-    Decoder <|
-        \state ->
-            segment state <|
-                \state_ str ->
-                    apply (f state_) (amongst options str)
+option options decoder =
+    withNext decoder <| \state next ->
+        segment state <| \str ->
+            Maybe.map next (amongst options str)
 
 
 {-| -}
 query : String -> Query.Decoder b -> Decoder (b -> a) -> Decoder a
-query field (Internal.Decoder queryD) (Decoder f) =
-    Decoder <|
-        \state ->
-            apply (f state) <| Maybe.andThen queryD (Dict.get field state.params)
+query field (Internal.Decoder queryDecoder) decoder =
+    withNext decoder <| \state next ->
+        Dict.get field state.params
+            |> Maybe.andThen queryDecoder
+            |> Maybe.map next
+            |> Maybe.map (Tuple.pair state)
 
 
 {-| -}
 fragment : Decoder (String -> a) -> Decoder a
-fragment (Decoder func) =
-    Decoder <|
-        \state ->
-            apply (func state) state.fragment
+fragment decoder =
+    withNext decoder <| \state next ->
+        state.fragment
+            |> Maybe.map next
+            |> Maybe.map (Tuple.pair state)
 
 
 
 -- INTERNAL
 
 
-segment : State -> (State -> String -> Maybe a) -> Maybe a
+segment : State -> (String -> Maybe a) -> Maybe (State, a)
 segment state func =
     case state.path of
         str :: rest ->
-            func (State rest state.params state.fragment) str
+            Maybe.map (Tuple.pair (State rest state.params state.fragment)) (func str)
 
         _ ->
             Nothing
@@ -161,9 +153,16 @@ amongst options wanted =
             Nothing
 
 
-apply : Maybe ( State, a -> b ) -> Maybe a -> Maybe ( State, b )
-apply f a =
-    Maybe.map2 (\( state, next ) value -> ( state, next value )) f a
+
+withNext : Decoder a -> (State -> a -> Maybe ( State, b )) -> Decoder b
+withNext (Decoder decoder) func =
+    Decoder <| \state1 ->
+        case decoder state1 of
+            Just ( state2, next ) ->
+                func state2 next
+
+            Nothing ->
+                Nothing
 
 
 
@@ -172,13 +171,12 @@ apply f a =
 
 preparePath : String -> List String
 preparePath path =
-    List.reverse <|
-        case String.split "/" path of
-            "" :: segments ->
-                removeFinalEmpty segments
+    case String.split "/" path of
+        "" :: segments ->
+            removeFinalEmpty segments
 
-            segments ->
-                removeFinalEmpty segments
+        segments ->
+            removeFinalEmpty segments
 
 
 removeFinalEmpty : List String -> List String

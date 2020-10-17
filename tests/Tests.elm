@@ -17,6 +17,7 @@ type Route
     | Pages (List Int)
     | Article String
     | Person Person
+    | User (Maybe String)
 
 
 type Admin
@@ -95,6 +96,17 @@ decodePerson =
     U.succeed Person
         |> U.const "person"
         |> U.option [ ( "you", You ), ( "me", Me ) ]
+
+
+decodeUser : U.Decoder Route
+decodeUser =
+    U.succeed User
+        |> U.const "user"
+        |> U.oneOf
+              [ U.succeed Just
+                  |> U.string
+              , U.succeed Nothing
+              ]
 
 
 suite : Test
@@ -240,6 +252,29 @@ suite =
                         [ decodeHome
                         , decodePerson
                         , decodeBlue
+                        , decodeAdmin
+                        ]
+
+        --
+        , test "decodes a maybe path (Nothing)" <|
+            \_ ->
+                testUrl "/user" (User Nothing) <|
+                    U.decode
+                        [ decodeHome
+                        , decodePerson
+                        , decodeBlue
+                        , decodeUser
+                        , decodeAdmin
+                        ]
+        --
+        , test "decodes a maybe path (Just)" <|
+            \_ ->
+                testUrl "/user/kwame" (User (Just "kwame")) <|
+                    U.decode
+                        [ decodeHome
+                        , decodePerson
+                        , decodeBlue
+                        , decodeUser
                         , decodeAdmin
                         ]
         ]

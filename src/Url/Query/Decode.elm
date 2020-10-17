@@ -1,4 +1,4 @@
-module Url.Query.Decode exposing (Decoder, int, list, option, string)
+module Url.Query.Decode exposing (Decoder, int, list, map, option, string)
 
 import Internal exposing (Decoder(..))
 
@@ -61,6 +61,14 @@ list (Decoder v) =
 
             else
                 Nothing
+
+
+{-| -}
+map : (a -> b) -> Decoder a -> Decoder b
+map f (Decoder a) =
+    Decoder <|
+        \state ->
+            Maybe.map f (a state)
 
 
 
