@@ -2,8 +2,8 @@ module Url.Decode exposing (Decoder, Url, const, decode, fragment, int, map, one
 
 import Dict exposing (Dict)
 import Internal
-import Query.Decode as Query
 import Url
+import Url.Query.Decode as Query
 
 
 {-| -}

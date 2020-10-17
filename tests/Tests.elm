@@ -2,10 +2,10 @@ module Tests exposing (Admin(..), Route(..), decodeAdmin, decodeArticle, decodeB
 
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int, list, string)
-import Query.Decode as Query
 import Test exposing (..)
-import Url as Url_
-import Url.Decode as Url
+import Url
+import Url.Decode as U
+import Url.Query.Decode as Q
 
 
 type Route
@@ -30,71 +30,71 @@ type Person
     | Me
 
 
-decodeHome : Url.Decoder Route
+decodeHome : U.Decoder Route
 decodeHome =
-    Url.succeed Home
+    U.succeed Home
 
 
-decodeBlue : Url.Decoder Route
+decodeBlue : U.Decoder Route
 decodeBlue =
-    Url.succeed Blue
-        |> Url.const "blue"
-        |> Url.int
+    U.succeed Blue
+        |> U.const "blue"
+        |> U.int
 
 
-decodeGreen : Url.Decoder Route
+decodeGreen : U.Decoder Route
 decodeGreen =
-    Url.succeed Green
-        |> Url.const "green"
-        |> Url.string
+    U.succeed Green
+        |> U.const "green"
+        |> U.string
 
 
-decodeAdmin : Url.Decoder Route
+decodeAdmin : U.Decoder Route
 decodeAdmin =
-    Url.succeed Admin
-        |> Url.const "admin"
-        |> Url.oneOf
-            [ Url.succeed Profile
-                |> Url.const "profile"
-                |> Url.string
-                |> Url.string
-            , Url.succeed Special
-                |> Url.const "settings"
-                |> Url.const "3"
-            , Url.succeed Settings
-                |> Url.const "settings"
-                |> Url.int
+    U.succeed Admin
+        |> U.const "admin"
+        |> U.oneOf
+            [ U.succeed Profile
+                |> U.const "profile"
+                |> U.string
+                |> U.string
+            , U.succeed Special
+                |> U.const "settings"
+                |> U.const "3"
+            , U.succeed Settings
+                |> U.const "settings"
+                |> U.int
             ]
-        |> Url.int
+        |> U.int
 
 
-decodeSearch : Url.Decoder Route
+decodeSearch : U.Decoder Route
 decodeSearch =
-    Url.succeed Search
-        |> Url.const "search"
-        |> Url.query "page" Query.int
-        |> Url.query "search" Query.string
+    U.succeed Search
+        |> U.const "search"
+        |> U.query "page" Q.int
+        |> U.query "search" Q.string
 
 
-decodePages : Url.Decoder Route
+decodePages : U.Decoder Route
 decodePages =
-    Url.succeed Pages
-        |> Url.const "pages"
-        |> Url.query "page" (Query.list Query.int)
+    U.succeed Pages
+        |> U.const "pages"
+        |> U.query "page" (Q.list Q.int)
 
 
-decodeArticle : Url.Decoder Route
+decodeArticle : U.Decoder Route
 decodeArticle =
-    Url.succeed Article
-        |> Url.const "article"
-        |> Url.fragment
+    U.succeed Article
+        |> U.const "article"
+        |> U.fragment
 
 
-decodePerson : Url.Decoder Route
+decodePerson : U.Decoder Route
 decodePerson =
-    Url.succeed Person
-        |> Url.const "person"
-        |> Url.option [ ( "you", You ), ( "me", Me ) ]
+    U.succeed Person
+        |> U.const "person"
+        |> U.option [ ( "you", You ), ( "me", Me ) ]
 
 
 suite : Test
@@ -103,7 +103,7 @@ suite =
         [ test "decodes a home path" <|
             \_ ->
                 testUrl "/" Home <|
-                    Url.decode
+                    U.decode
                         [ decodeBlue
                         , decodeHome
                         , decodeGreen
@@ -113,28 +113,28 @@ suite =
         , test "decodes a path" <|
             \_ ->
                 testUrl "/blue/2" (Blue 2) <|
-                    Url.decode
+                    U.decode
                         [ decodeBlue ]
 
         --
         , test "decodes a path, only if complete (start)" <|
             \_ ->
                 testUrlFail "/something/blue/2" <|
-                    Url.decode
+                    U.decode
                         [ decodeBlue ]
 
         --
         , test "decodes a path, only if complete (end)" <|
             \_ ->
                 testUrlFail "/blue/2/something" <|
-                    Url.decode
+                    U.decode
                         [ decodeBlue ]
 
         --
         , test "decodes a path amongst others (first succeeding)" <|
             \_ ->
                 testUrl "/" Home <|
-                    Url.decode
+                    U.decode
                         [ decodeHome
                         , decodeBlue
                         , decodeGreen
@@ -144,7 +144,7 @@ suite =
         , test "decodes a path amongst others (second succeeding)" <|
             \_ ->
                 testUrl "/blue/3" (Blue 3) <|
-                    Url.decode
+                    U.decode
                         [ decodeHome
                         , decodeBlue
                         , decodeGreen
@@ -154,7 +154,7 @@ suite =
         , test "decodes a path amongst others (thrid succeeding)" <|
             \_ ->
                 testUrl "/green/hello" (Green "hello") <|
-                    Url.decode
+                    U.decode
                         [ decodeHome
                         , decodeBlue
                         , decodeGreen
@@ -164,7 +164,7 @@ suite =
         , test "decodes with oneOf in the middle (first option)" <|
             \_ ->
                 testUrl "/admin/settings/2/5" (Admin (Settings 2) 5) <|
-                    Url.decode
+                    U.decode
                         [ decodeHome
                         , decodeBlue
                         , decodeAdmin
@@ -175,7 +175,7 @@ suite =
         , test "decodes with oneOf in the middle (second option)" <|
             \_ ->
                 testUrl "/admin/profile/elm/evan/8" (Admin (Profile "elm" "evan") 8) <|
-                    Url.decode
+                    U.decode
                         [ decodeHome
                         , decodeBlue
                         , decodeAdmin
@@ -186,7 +186,7 @@ suite =
         , test "decodes with oneOf with two valid paths" <|
             \_ ->
                 testUrl "/admin/settings/3/8" (Admin Special 8) <|
-                    Url.decode
+                    U.decode
                         [ decodeHome
                         , decodeBlue
                         , decodeAdmin
@@ -197,7 +197,7 @@ suite =
         , test "decodes a query" <|
             \_ ->
                 testUrl "/search?search=hello&page=4" (Search 4 "hello") <|
-                    Url.decode
+                    U.decode
                         [ decodeHome
                         , decodeBlue
                         , decodeAdmin
@@ -209,7 +209,7 @@ suite =
         , test "decodes a query with a list" <|
             \_ ->
                 testUrl "/pages?page=4&page=9" (Pages [ 4, 9 ]) <|
-                    Url.decode
+                    U.decode
                         [ decodeHome
                         , decodeBlue
                         , decodeAdmin
@@ -222,7 +222,7 @@ suite =
         , test "decodes a fragment" <|
             \_ ->
                 testUrl "/article#header" (Article "header") <|
-                    Url.decode
+                    U.decode
                         [ decodeHome
                         , decodeBlue
                         , decodeAdmin
@@ -236,7 +236,7 @@ suite =
         , test "decodes an option" <|
             \_ ->
                 testUrl "/person/you" (Person You) <|
-                    Url.decode
+                    U.decode
                         [ decodeHome
                         , decodePerson
                         , decodeBlue
@@ -245,9 +245,9 @@ suite =
         ]
 
 
-testUrl : String -> a -> (Url_.Url -> Maybe a) -> Expectation
+testUrl : String -> a -> (Url.Url -> Maybe a) -> Expectation
 testUrl url result decoder =
-    case Url_.fromString ("https://fruits.com" ++ url) of
+    case Url.fromString ("https://fruits.com" ++ url) of
         Just ok ->
             Expect.equal (Just result) (decoder ok)
 
@@ -255,9 +255,9 @@ testUrl url result decoder =
             Expect.fail "Invalid URL"
 
 
-testUrlFail : String -> (Url_.Url -> Maybe a) -> Expectation
+testUrlFail : String -> (Url.Url -> Maybe a) -> Expectation
 testUrlFail url decoder =
-    case Url_.fromString ("https://fruits.com" ++ url) of
+    case Url.fromString ("https://fruits.com" ++ url) of
         Just ok ->
             Expect.equal Nothing (decoder ok)
 

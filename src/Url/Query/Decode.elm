@@ -1,4 +1,4 @@
-module Query.Decode exposing (Decoder, int, list, option, string)
+module Url.Query.Decode exposing (Decoder, int, list, option, string)
 
 import Internal exposing (Decoder(..))
 
