@@ -103,10 +103,10 @@ decodeUser =
     U.succeed User
         |> U.const "user"
         |> U.oneOf
-              [ U.succeed Just
-                  |> U.string
-              , U.succeed Nothing
-              ]
+            [ U.succeed Just
+                |> U.string
+            , U.succeed Nothing
+            ]
 
 
 suite : Test
@@ -266,6 +266,7 @@ suite =
                         , decodeUser
                         , decodeAdmin
                         ]
+
         --
         , test "decodes a maybe path (Just)" <|
             \_ ->
