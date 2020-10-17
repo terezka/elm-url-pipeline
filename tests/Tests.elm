@@ -104,7 +104,10 @@ suite =
             \_ ->
                 testUrl "/" Home <|
                     Url.decode
-                        [ decodeHome ]
+                        [ decodeBlue
+                        , decodeHome
+                        , decodeGreen
+                        ]
 
         --
         , test "decodes a path" <|
