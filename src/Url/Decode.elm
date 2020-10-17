@@ -1,9 +1,14 @@
-module Url.Decode exposing (Decoder, const, decode, fragment, int, map, oneOf, option, query, string, succeed)
+module Url.Decode exposing (Decoder, Url, const, decode, fragment, int, map, oneOf, option, query, string, succeed)
 
 import Dict exposing (Dict)
 import Internal
 import Query.Decode as Query
-import Url exposing (Url)
+import Url
+
+
+{-| -}
+type alias Url =
+    Url.Url
 
 
 {-| -}
