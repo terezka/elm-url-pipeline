@@ -26,8 +26,8 @@ type Admin
 
 
 type Person
-  = You
-  | Me
+    = You
+    | Me
 
 
 decodeHome : Url.Decoder Route
@@ -94,7 +94,7 @@ decodePerson : Url.Decoder Route
 decodePerson =
     Url.succeed Person
         |> Url.const "person"
-        |> Url.option [("you", You), ("me", Me)]
+        |> Url.option [ ( "you", You ), ( "me", Me ) ]
 
 
 suite : Test
@@ -231,6 +231,7 @@ suite =
                         , decodeGreen
                         , decodePages
                         ]
+
         --
         , test "decodes an option" <|
             \_ ->
