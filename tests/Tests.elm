@@ -16,12 +16,18 @@ type Route
     | Search Int String
     | Pages (List Int)
     | Article String
+    | Person Person
 
 
 type Admin
     = Special
     | Settings Int
     | Profile String String
+
+
+type Person
+  = You
+  | Me
 
 
 decodeHome : Url.Decoder Route
@@ -82,6 +88,13 @@ decodeArticle =
     Url.succeed Article
         |> Url.const "article"
         |> Url.fragment
+
+
+decodePerson : Url.Decoder Route
+decodePerson =
+    Url.succeed Person
+        |> Url.const "person"
+        |> Url.option [("you", You), ("me", Me)]
 
 
 suite : Test
@@ -214,6 +227,16 @@ suite =
                         , decodeArticle
                         , decodeGreen
                         , decodePages
+                        ]
+        --
+        , test "decodes an option" <|
+            \_ ->
+                testUrl "/person/you" (Person You) <|
+                    Url.decode
+                        [ decodeHome
+                        , decodePerson
+                        , decodeBlue
+                        , decodeAdmin
                         ]
         ]
 
