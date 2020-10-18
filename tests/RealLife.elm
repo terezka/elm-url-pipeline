@@ -8,11 +8,13 @@ import Url.Decode as U
 import Url.Query.Decode as Q
 
 
+-- TODO add maybe to query
+
 type Route
     = Home
     | User String
     | Article Int
-    | Search String Int
+    | Search String (Maybe Int)
 
 
 toRoute : U.Url -> Maybe Route
@@ -35,7 +37,7 @@ toRoute =
         , U.succeed Search
             |> U.const "search"
             |> U.query "query" Q.string
-            |> U.query "page" Q.int
+            |> U.query "page" (Q.maybe Q.int)
         ]
 
 
@@ -53,7 +55,16 @@ suite =
                 testUrl "/article/34" (Article 34)
         , test "Search" <|
             \_ ->
-                testUrl "/search?query=hello&page=3" (Search "hello" 3)
+                testUrl "/search?query=hello&page=3" (Search "hello" (Just 3))
+        , test "Search, empty query" <|
+            \_ ->
+                testUrl "/search?query=&page=3" (Search "" (Just 3))
+        , test "Search, no query" <|
+            \_ ->
+                testUrlFailed "/search?page=3"
+        , test "Search, no page" <|
+            \_ ->
+                testUrl "/search?query=nkrumah" (Search "nkrumah" Nothing)
         ]
 
 
@@ -62,6 +73,16 @@ testUrl url expected =
     case Url.fromString ("https://fruits.com" ++ url) of
         Just ok ->
             Expect.equal (Just expected) (toRoute ok)
+
+        Nothing ->
+            Expect.fail "Invalid URL"
+
+
+testUrlFailed : String -> Expectation
+testUrlFailed url =
+    case Url.fromString ("https://fruits.com" ++ url) of
+        Just ok ->
+            Expect.equal Nothing (toRoute ok)
 
         Nothing ->
             Expect.fail "Invalid URL"

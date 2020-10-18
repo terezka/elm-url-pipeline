@@ -15,7 +15,7 @@ type Route
     | Admin Admin Int
     | Search Int String
     | Pages (List Int)
-    | Article String
+    | Article (Maybe String)
     | Person Person
     | User (Maybe String)
 
@@ -233,7 +233,7 @@ suite =
         --
         , test "decodes a fragment" <|
             \_ ->
-                testUrl "/article#header" (Article "header") <|
+                testUrl "/article#header" (Article (Just "header")) <|
                     U.decode
                         [ decodeHome
                         , decodeBlue

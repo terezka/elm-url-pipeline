@@ -124,9 +124,7 @@ query field (Internal.Decoder queryDecoder) decoder =
 fragment : Decoder (String -> a) -> Decoder a
 fragment decoder =
     withNext decoder <| \state next ->
-        state.fragment
-            |> Maybe.map next
-            |> Maybe.map (Tuple.pair state)
+        Just (state, next state.fragment)
 
 
 
