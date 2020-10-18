@@ -8,8 +8,6 @@ import Url.Decode as U
 import Url.Query.Decode as Q
 
 
--- TODO add maybe to query
-
 type Route
     = Home
     | User String
@@ -19,23 +17,23 @@ type Route
 
 toRoute : U.Url -> Maybe Route
 toRoute =
-    U.decode
+    U.fromUrl
         [ -- /
-          U.succeed Home
+          U.decode Home
 
-        -- /user/:username
-        , U.succeed User
-            |> U.const "user"
+        -- /user/terezka
+        , U.decode User
+            |> U.path "user"
             |> U.string
 
-        -- /article/:id
-        , U.succeed Article
-            |> U.const "article"
+        -- /article/23
+        , U.decode Article
+            |> U.path "article"
             |> U.int
 
         -- /search?query=hello&page=2
-        , U.succeed Search
-            |> U.const "search"
+        , U.decode Search
+            |> U.path "search"
             |> U.query "query" Q.string
             |> U.query "page" (Q.maybe Q.int)
         ]

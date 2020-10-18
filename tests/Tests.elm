@@ -33,37 +33,37 @@ type Person
 
 decodeHome : U.Decoder Route
 decodeHome =
-    U.succeed Home
+    U.decode Home
 
 
 decodeBlue : U.Decoder Route
 decodeBlue =
-    U.succeed Blue
-        |> U.const "blue"
+    U.decode Blue
+        |> U.path "blue"
         |> U.int
 
 
 decodeGreen : U.Decoder Route
 decodeGreen =
-    U.succeed Green
-        |> U.const "green"
+    U.decode Green
+        |> U.path "green"
         |> U.string
 
 
 decodeAdmin : U.Decoder Route
 decodeAdmin =
-    U.succeed Admin
-        |> U.const "admin"
+    U.decode Admin
+        |> U.path "admin"
         |> U.oneOf
-            [ U.succeed Profile
-                |> U.const "profile"
+            [ U.decode Profile
+                |> U.path "profile"
                 |> U.string
                 |> U.string
-            , U.succeed Special
-                |> U.const "settings"
-                |> U.const "3"
-            , U.succeed Settings
-                |> U.const "settings"
+            , U.decode Special
+                |> U.path "settings"
+                |> U.path "3"
+            , U.decode Settings
+                |> U.path "settings"
                 |> U.int
             ]
         |> U.int
@@ -71,41 +71,41 @@ decodeAdmin =
 
 decodeSearch : U.Decoder Route
 decodeSearch =
-    U.succeed Search
-        |> U.const "search"
+    U.decode Search
+        |> U.path "search"
         |> U.query "page" Q.int
         |> U.query "search" Q.string
 
 
 decodePages : U.Decoder Route
 decodePages =
-    U.succeed Pages
-        |> U.const "pages"
+    U.decode Pages
+        |> U.path "pages"
         |> U.query "page" (Q.list Q.int)
 
 
 decodeArticle : U.Decoder Route
 decodeArticle =
-    U.succeed Article
-        |> U.const "article"
+    U.decode Article
+        |> U.path "article"
         |> U.fragment
 
 
 decodePerson : U.Decoder Route
 decodePerson =
-    U.succeed Person
-        |> U.const "person"
+    U.decode Person
+        |> U.path "person"
         |> U.option [ ( "you", You ), ( "me", Me ) ]
 
 
 decodeUser : U.Decoder Route
 decodeUser =
-    U.succeed User
-        |> U.const "user"
+    U.decode User
+        |> U.path "user"
         |> U.oneOf
-            [ U.succeed Just
+            [ U.decode Just
                 |> U.string
-            , U.succeed Nothing
+            , U.decode Nothing
             ]
 
 
@@ -115,7 +115,7 @@ suite =
         [ test "decodes a home path" <|
             \_ ->
                 testUrl "/" Home <|
-                    U.decode
+                    U.fromUrl
                         [ decodeBlue
                         , decodeHome
                         , decodeGreen
@@ -125,48 +125,48 @@ suite =
         , test "decodes a path" <|
             \_ ->
                 testUrl "/blue/2" (Blue 2) <|
-                    U.decode
+                    U.fromUrl
                         [ decodeBlue ]
 
         --
         , test "decodes a path, only if complete (start)" <|
             \_ ->
                 testUrlFail "/something/blue/2" <|
-                    U.decode
+                    U.fromUrl
                         [ decodeBlue ]
 
         --
         , test "decodes a path, only if complete (end)" <|
             \_ ->
                 testUrlFail "/blue/2/something" <|
-                    U.decode
+                    U.fromUrl
                         [ decodeBlue ]
 
         --
-        , test "decodes a path amongst others (first succeeding)" <|
+        , test "decodes a path amongst others (first decodeing)" <|
             \_ ->
                 testUrl "/" Home <|
-                    U.decode
+                    U.fromUrl
                         [ decodeHome
                         , decodeBlue
                         , decodeGreen
                         ]
 
         --
-        , test "decodes a path amongst others (second succeeding)" <|
+        , test "decodes a path amongst others (second decodeing)" <|
             \_ ->
                 testUrl "/blue/3" (Blue 3) <|
-                    U.decode
+                    U.fromUrl
                         [ decodeHome
                         , decodeBlue
                         , decodeGreen
                         ]
 
         --
-        , test "decodes a path amongst others (thrid succeeding)" <|
+        , test "decodes a path amongst others (thrid decodeing)" <|
             \_ ->
                 testUrl "/green/hello" (Green "hello") <|
-                    U.decode
+                    U.fromUrl
                         [ decodeHome
                         , decodeBlue
                         , decodeGreen
@@ -176,7 +176,7 @@ suite =
         , test "decodes with oneOf in the middle (first option)" <|
             \_ ->
                 testUrl "/admin/settings/2/5" (Admin (Settings 2) 5) <|
-                    U.decode
+                    U.fromUrl
                         [ decodeHome
                         , decodeBlue
                         , decodeAdmin
@@ -187,7 +187,7 @@ suite =
         , test "decodes with oneOf in the middle (second option)" <|
             \_ ->
                 testUrl "/admin/profile/elm/evan/8" (Admin (Profile "elm" "evan") 8) <|
-                    U.decode
+                    U.fromUrl
                         [ decodeHome
                         , decodeBlue
                         , decodeAdmin
@@ -198,7 +198,7 @@ suite =
         , test "decodes with oneOf with two valid paths" <|
             \_ ->
                 testUrl "/admin/settings/3/8" (Admin Special 8) <|
-                    U.decode
+                    U.fromUrl
                         [ decodeHome
                         , decodeBlue
                         , decodeAdmin
@@ -209,7 +209,7 @@ suite =
         , test "decodes a query" <|
             \_ ->
                 testUrl "/search?search=hello&page=4" (Search 4 "hello") <|
-                    U.decode
+                    U.fromUrl
                         [ decodeHome
                         , decodeBlue
                         , decodeAdmin
@@ -221,7 +221,7 @@ suite =
         , test "decodes a query with a list" <|
             \_ ->
                 testUrl "/pages?page=4&page=9" (Pages [ 4, 9 ]) <|
-                    U.decode
+                    U.fromUrl
                         [ decodeHome
                         , decodeBlue
                         , decodeAdmin
@@ -234,7 +234,7 @@ suite =
         , test "decodes a fragment" <|
             \_ ->
                 testUrl "/article#header" (Article (Just "header")) <|
-                    U.decode
+                    U.fromUrl
                         [ decodeHome
                         , decodeBlue
                         , decodeAdmin
@@ -248,7 +248,7 @@ suite =
         , test "decodes an option" <|
             \_ ->
                 testUrl "/person/you" (Person You) <|
-                    U.decode
+                    U.fromUrl
                         [ decodeHome
                         , decodePerson
                         , decodeBlue
@@ -259,7 +259,7 @@ suite =
         , test "decodes a maybe path (Nothing)" <|
             \_ ->
                 testUrl "/user" (User Nothing) <|
-                    U.decode
+                    U.fromUrl
                         [ decodeHome
                         , decodePerson
                         , decodeBlue
@@ -271,7 +271,7 @@ suite =
         , test "decodes a maybe path (Just)" <|
             \_ ->
                 testUrl "/user/kwame" (User (Just "kwame")) <|
-                    U.decode
+                    U.fromUrl
                         [ decodeHome
                         , decodePerson
                         , decodeBlue
