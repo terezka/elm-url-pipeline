@@ -1,12 +1,34 @@
 module Url.Decode exposing (Decoder, Url, const, decode, fragment, int, map, oneOf, option, query, string, succeed)
 
+{-| In [the URI spec](https://tools.ietf.org/html/rfc3986), Tim Berners-Lee
+says a URL looks like this:
+```
+  https://example.com:8042/over/there?name=ferret#nose
+  \___/   \______________/\_________/ \_________/ \__/
+    |            |            |            |        |
+  scheme     authority       path        query   fragment
+```
+
+These are the names we will use to talk about segments of a URL in this library.
+
+# Decoding
+@docs Url, Decoder, decode, succeed
+
+# Segments
+@docs const, string, int, option, fragment, query
+
+# Advanced
+@docs map, oneOf
+
+-}
+
 import Dict exposing (Dict)
 import Internal
 import Url
 import Url.Query.Decode as Query
 
 
-{-| -}
+{-| A re-export of [`Url`](https://package.elm-lang.org/packages/elm/url/latest/Url#Url). -}
 type alias Url =
     Url.Url
 
@@ -23,7 +45,42 @@ type alias State =
     }
 
 
-{-| -}
+{-| Decode a [`Url`](https://package.elm-lang.org/packages/elm/url/latest/Url#Url).
+
+    import Url.Decode as U
+    import Url.Query.Decode as Q
+
+    type Route
+        = Home
+        | User String
+        | Article Int
+        | Search String (Maybe Int)
+
+    toRoute : Url -> Route
+    toRoute =
+        U.decode
+            [ -- /  ==> Just Home
+              U.succeed Home
+
+              -- /user/terezka  ==> Just (User "terezka")
+            , U.succeed User
+                |> U.const "user"
+                |> U.string
+
+              -- /article/34  ==> Just (Article 34)
+            , U.succeed Article
+                |> U.const "article"
+                |> U.int
+
+              -- /search?query=nkrumah&page=2  ==> Just (Search "nkrumah" (Just 2))
+              -- /search                       ==> Nothing
+            , U.succeed Search
+                |> U.const "search"
+                |> U.query "query" Q.string
+                |> U.query "page" (Q.maybe Q.int)
+            ]
+
+-}
 decode : List (Decoder a) -> Url -> Maybe a
 decode decoders url =
     let
@@ -48,7 +105,33 @@ decode decoders url =
             Nothing
 
 
-{-| -}
+{-| Apply a function to your decoded value.
+
+    type Route
+        = Article Article.Params
+
+    toRoute : Url -> Maybe Route
+    toRoute =
+        U.decode
+            [ -- /article/who-is-nkrumah#early-life ==> Just (Article { slug = "who-is-nkrumah", header = Just "early-life" })
+              -- /article/who-is-nkrumah            ==> Just (Article { slug = "who-is-nkrumah", header = Nothing })
+              -- /hello                             ==> Nothing
+              --
+              U.succeed Article.Params
+                |> U.const "article"
+                |> U.string
+                |> U.fragment
+                |> U.map Article
+            ]
+
+    -- Article.elm
+
+    type alias Params =
+        { slug : String
+        , header : Maybe String
+        }
+
+-}
 map : (a -> b) -> Decoder a -> Decoder b
 map f (Decoder a) =
     Decoder <| \state ->
@@ -60,7 +143,97 @@ map f (Decoder a) =
                 Nothing
 
 
-{-| -}
+{-| When a route can go in two different valid directions.
+
+    type Route
+        = Article ArticleId
+
+    type ArticleId
+        = Categorized String Int
+        | Single Int
+
+    toRoute : Url -> Maybe Route
+    toRoute =
+        U.decode
+            [ -- Matches both:
+              --
+              -- /article/12/editing                ==> Just (Article (Single 12))
+              -- /article/category/cats/32/editing  ==> Just (Article (Categorized "cats" 32))
+              --
+              U.succeed Article
+                |> U.const "article"
+                |> U.oneOf
+                    [ U.succeed Single
+                        |> U.int
+                    , U.succeed Categorized
+                        |> U.const "category"
+                        |> U.string
+                        |> U.int
+                    ]
+                |> U.const "editing"
+            ]
+
+Though, this is fine, it is usually nices to flatten your decoder, like so:
+
+    type Route
+        = Article ArticleId
+
+    type ArticleId
+        = Categorized String Int
+        | Single Int
+
+    toRoute : Url -> Maybe Route
+    toRoute =
+        U.decode
+            [ -- /article/12/editing  ==> Just (Article (Single 12))
+              -- /article/56/editing  ==> Just (Article (Single 56))
+              -- /article/56          ==> Nothing
+              -- /article/hello       ==> Nothing
+              -- /what                ==> Nothing
+              U.succeed Single
+                |> U.const "article"
+                |> U.int
+                |> U.const "editing"
+                |> U.map Article
+
+              -- /article/category/cats/32/editing           ==> Just (Article (Categorized "cats" 32))
+              -- /article/category/pan-africanism/6/editing  ==> Just (Article (Categorized "pan-africanism" 6))
+              -- /article/category/pan-africanism/6          ==> Nothing
+              -- /article                                    ==> Nothing
+            , U.succeed Categorized
+                |> U.const "article"
+                |> U.const "category"
+                |> U.string
+                |> U.int
+                |> U.const "editing"
+                |> U.map Article
+            ]
+
+Much more readable! It may still be useful in smaller dosages:
+
+    type Route
+        = Profile (Maybe String)
+
+    toRoute : Url -> Maybe Route
+    toRoute =
+        U.decode
+            [ -- /user/terezka  ==> Just (User (Just "terezka"))
+              -- /user          ==> Just (User Nothing)
+              -- /hello         ==> Nothing
+              U.succeed User
+                |> U.const "user"
+                |> U.oneOf
+                    [ U.succeed Just
+                        |> U.string
+                    , U.succeed Nothing
+                    ]
+            ]
+
+NOTE: The order of the decoders in the list matter! The first one to succeed wins. If
+the two decoders in example above were flipped, the `oneOf` would always return `Nothing`,
+because it would be first and would always pass.
+
+-}
 oneOf : List (Decoder a) -> Decoder (a -> b) -> Decoder b
 oneOf decoders decoder =
     withNext decoder <| \state next ->
@@ -72,13 +245,46 @@ oneOf decoders decoder =
                 Nothing
 
 
-{-| -}
+{-| A decoder which always succeeds! Use to begin a pipeline.
+
+    type Route
+        = Home
+        | Article Article.Id
+
+    toRoute : Url -> Maybe Route
+    toRoute =
+        U.decode
+            [ -- /           ==> Just Home
+              -- /article/23 ==> Just (Article 23)
+              -- /bla        ==> Nothing
+              U.succeed Home
+            , U.succeed Article
+                |> U.const "article"
+                |> U.int
+            ]
+
+-}
 succeed : a -> Decoder a
 succeed a =
     Decoder (\state -> Just ( state, a ))
 
 
-{-| -}
+{-| A required piece of the path.
+
+    type Route
+        = Profile
+
+    toRoute : Url -> Maybe Route
+    toRoute =
+        U.decode
+            [ -- /profile/me ==> Just Profile
+              -- /profile    ==> Nothing
+              -- /hello      ==> Nothing
+              U.succeed Profile
+                |> U.const "profile"
+                |> U.const "me"
+            ]
+-}
 const : String -> Decoder a -> Decoder a
 const wanted decoder =
     withNext decoder <| \state next ->
@@ -86,7 +292,23 @@ const wanted decoder =
             if str == wanted then Just next else Nothing
 
 
-{-| -}
+{-| Read a variable integer in the path.
+
+    type Route
+        = Profile Int
+
+    toRoute : Url -> Maybe Route
+    toRoute =
+        U.decode
+            [ -- /profile/34 ==> Just (Profile 34)
+              -- /profile/5  ==> Just (Profile 5)
+              -- /profile    ==> Nothing
+              U.succeed Profile
+                |> U.const "profile"
+                |> U.int
+            ]
+
+-}
 int : Decoder (Int -> a) -> Decoder a
 int decoder =
     withNext decoder <| \state next ->
@@ -94,7 +316,24 @@ int decoder =
             Maybe.map next (String.toInt str)
 
 
-{-| -}
+{-| Read a variable string in the path.
+
+    type Route
+        = Profile String
+
+    toRoute : Url -> Maybe Route
+    toRoute =
+        U.decode
+            [ -- /profile/terezka ==> Just (Profile "terezka")
+              -- /profile/kwame   ==> Just (Profile "kwame")
+              -- /profile/23      ==> Just (Profile "23")
+              -- /profile         ==> Nothing
+              -- /hello           ==> Nothing
+              U.succeed Profile
+                |> U.const "profile"
+                |> U.string
+            ]
+-}
 string : Decoder (String -> a) -> Decoder a
 string decoder =
     withNext decoder <| \state next ->
@@ -102,7 +341,26 @@ string decoder =
             Just (next str)
 
 
-{-| -}
+{-| Read a custom type in the path.
+
+    type Route
+        = Profile Person
+
+    type Person
+        = You
+        | Me
+
+    toRoute : Url -> Maybe Route
+    toRoute =
+        U.decode
+            [ -- /profile/you   ==> Just (Profile You)
+              -- /profile/me    ==> Just (Profile Me)
+              -- /profile/hello ==> Nothing
+              U.succeed Profile
+                |> U.const "profile"
+                |> U.string
+            ]
+-}
 option : List ( String, b ) -> Decoder (b -> a) -> Decoder a
 option options decoder =
     withNext decoder <| \state next ->
@@ -110,18 +368,53 @@ option options decoder =
             Maybe.map next (amongst options str)
 
 
-{-| -}
+{-| Decode a query parameter.
+
+    type Route
+        = Search String (Maybe Int)
+
+    toRoute : Url -> Route
+    toRoute =
+        U.decode
+            [ -- /search?query=nkrumah&page=2  ==> Just (Search "nkrumah" (Just 2))
+              -- /search?query=&page=2         ==> Just (Search "" (Just 2))
+              -- /search?query=nkrumah         ==> Just (Search "nkrumah" Nothing)
+              -- /search                       ==> Nothing
+            , U.succeed Search
+                |> U.const "search"
+                |> U.query "query" Q.string
+                |> U.query "page" (Q.maybe Q.int)
+            ]
+
+-}
 query : String -> Query.Decoder b -> Decoder (b -> a) -> Decoder a
 query field (Internal.Decoder queryDecoder) decoder =
     withNext decoder <| \state next ->
         Dict.get field state.params
-            |> Maybe.andThen queryDecoder
+            |> Maybe.withDefault []
+            |> queryDecoder
             |> Maybe.map next
             |> Maybe.map (Tuple.pair state)
 
 
-{-| -}
-fragment : Decoder (String -> a) -> Decoder a
+{-| Decode a fragment.
+
+    type Route
+        = Dashboard (Maybe String)
+
+    toRoute : Url -> Maybe Route
+    toRoute =
+        U.decode
+            [ -- /#about  ==> Just (Dashboard (Just "about"))
+              -- /#prices ==> Just (Dashboard (Just "prices"))
+              -- /        ==> Just (Dashboard Nothing)
+              -- /hello   ==> Nothing
+              U.succeed Dashboard
+                |> U.fragment
+            ]
+
+-}
+fragment : Decoder (Maybe String -> a) -> Decoder a
 fragment decoder =
     withNext decoder <| \state next ->
         Just (state, next state.fragment)
